@@ -1,0 +1,41 @@
+name: Hiscores snapshot
+
+on:
+  schedule:
+    # Every 15 minutes, offset from the top of the hour (when GitHub is busiest). Written as an
+    # explicit list: GitHub's scheduler has been seen to ignore range-with-step syntax.
+    - cron: '3,18,33,48 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: snapshot
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Read the hiscores
+        run: node snapshot.mjs
+        env:
+          PLAYER: 'f anatic'
+      - name: Save the reading
+        # data/history.json already holds the full history, so each run replaces the previous
+        # reading commit instead of adding a new one. That keeps the repository from growing.
+        run: |
+          git config user.name "hiscores-bot"
+          git config user.email "hiscores-bot@users.noreply.github.com"
+          git add data/history.json
+          if git diff --cached --quiet; then exit 0; fi
+          if git log -1 --pretty=%s | grep -q '^Hiscores reading'; then
+            git commit --amend -m "Hiscores reading $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push --force
+          else
+            git commit -m "Hiscores reading $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          fi
